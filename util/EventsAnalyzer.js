@@ -1,6 +1,7 @@
 var _ = require('lodash'),
     datetime = require('./DateTimeParser'),
-    noise    = require('./NoiseFilter');
+    noise    = require('./NoiseFilter'),
+    ticketCost = require('./CostParser');
     
 module.exports = {
 
@@ -11,16 +12,16 @@ module.exports = {
 
   parseEvents: function (rawText) {
 
-    datetime.cachedSplitText = rawText.split('');
+    datetime.set(rawText);
+    datetime.initialize();
 
-    this.colorize(datetime.parseDates(rawText), 'red');
-    this.colorize(datetime.parseTimes(rawText), 'green');
+    // noise.set(rawText);
+    // noise.initialize();
+    // this.colorize(noise.heatMap(), 'blue');
 
-    noise.set(rawText);
-    noise.initialize();
-    this.colorize(noise.heatMap(), 'blue');
-
-    console.log(noise.toString());
+    // ticketCost.set(rawText);
+    // ticketCost.initialize();
+    // this.colorize(ticketCost.heatMap(), 'green');
 
     return datetime.cachedSplitText.join('');
   },

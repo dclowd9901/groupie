@@ -21,7 +21,7 @@ module.exports = {
     this.getFrequencyMedianMode(this.wordFrequencyMap);
   },
 
-  heatMap: function () {
+  heatMap: function (map) {
     var alreadyHighlighted = false,
         i, len = this.tokenizedText.length,
         start = -1,
@@ -30,7 +30,6 @@ module.exports = {
     for (i = 0; i < len; i++) {
       var word = this.tokenizedText[i].word;
 
-      console.log(this.wordFrequencyMap[word].count, this.avg);
       if (this.wordFrequencyMap[word].count < this.avg) {
         if (!alreadyHighlighted) {
           start = this.tokenizedText[i].start;
@@ -47,7 +46,7 @@ module.exports = {
         }
       }
     }
-    console.log(heatMap);
+
     return heatMap;
   },
 
@@ -171,7 +170,7 @@ module.exports = {
     var sortedByCount = _.sortBy(wordFrequencyMap, 'count'),
         halfLen = _.size(sortedByCount)/2;
 
-    this.median = _.at(sortedByCount, halfLen)[0].count;
+    //this.median = _.at(sortedByCount, halfLen)[0].count;
     this.mode = this.calculateMode(wordFrequencyMap);
   },
 

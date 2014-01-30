@@ -2,10 +2,78 @@ var _ = require('lodash');
     
 module.exports = {
 
-  dateHeatMap: {},
+  dateHeatMap: [],
   timeHeatMap: {},
 
+  monthRe: /\bjanuary\b|\bfebruary\b|\bmarch\b|\bapril\b|\bmay\b|\bjune\b|\bjuly\b|\baugust\b|\bseptember\b|\boctober\b|\bnovember|\bdecember\b/gi,
+  abbrMonthRe: '[\\bjan\\b|\\bfeb\\b|\\bmar\\b|\\bapr\\b|\\bmay\\b|\\bjun\\b|\\bjul\\b|\\baug\\b|\\bsep\\b|\\boct\\b|\\bnov\\b|\\bdec\\b]',
+
   cachedSplitText: null,
+
+  initialize: function () {
+    this.cachedSplitText = this.text.split('');
+    this.parseSpelledDates();
+    this.parseDates();
+    this.parseTimes();
+    console.log(this.dateHeatMap);
+  },
+
+  set: function (text) {
+    this.text = text;
+  },
+
+  matches: function (needle, haystack) {
+    var matches = [];
+
+    while (found = needle.exec(haystack)) {
+      matches.push({
+        word: found[0],
+        start: found.index,
+        end: found.index + found[0].length
+      });
+    }
+
+    return matches;
+  },
+
+  // re match lookup
+  lookahead: function (arr, re, haystack) {
+    _.each(arr, function (wordProps, i) {
+      var result;
+
+      re.lastIndex = wordProps.end;
+      result = re.exec(haystack);
+
+      if (result) {
+        arr[i].word += result[0];
+        arr[i].end += result[0].length;
+      }
+    });
+
+    return arr;
+  },
+
+  // one character at a time lookup
+  lookbehind: function (arr, re) {
+    var i, len = arr.length, j,
+        foundMatch, stored = '';
+
+    for (i = 0; i < len; i++) {  
+      j = arr[i].start - 1;
+      foundMatch = true;
+
+      while (re.test(this.cachedSplitText[j])) {
+        stored += this.cachedSplitText[j];
+        j--;
+        arr[i].start--;
+      }
+
+      arr[i].word = stored + arr[i].word;
+      stored = '';
+    }
+
+    return arr;
+  },
 
   parseDates: function () {
     var datesRe = new RegExp('/');
@@ -14,12 +82,30 @@ module.exports = {
       var result = this.testFor(value, key, all, datesRe, _.bind(this.testAroundSlash, this));
       
       if (result) {
-        this.dateHeatMap[key] = result;
+        this.dateHeatMap.push(result);
       }
     }, this));
 
     return this.dateHeatMap;
   },
+
+  wholeWordize: function (arr) {
+    return _.map(arr, function (word) {
+      return '\\b' + word + '\\b';
+    });
+  },
+
+  parseSpelledDates: function () {
+    var matches = this.matches(this.monthRe, this.text),
+        spelledDates = [];
+
+    matches = this.lookahead(matches, /[ 0-9]+/g, this.text);
+    matches = this.lookbehind(matches, /[ 0-9]/, this.text);
+
+    console.log(matches);
+  },
+
+  
 
   parseTimes: function () {
     var datesRe = new RegExp('\:');
@@ -43,17 +129,15 @@ module.exports = {
     }
   },
 
+
+
   /**
    * Will return as long as any characters 0-9 or / are found
    */
   testAroundSlash: function (i, blobArr) {
     var result = this.testAround(i, blobArr, new RegExp('[0-9\\/]{1}', 'i'));
 
-    if (result.start === result.end) {
-      return false;
-    } else {
-      return result;
-    }
+    return !(result.start === result.end);
   },
 
   testAroundColon: function (i, blobArr) {
@@ -64,11 +148,15 @@ module.exports = {
                                  // test for numbers, spaces and a/p/m/.
                                  new RegExp('[0-9\\sap\\.m]', 'i'));
 
-    if (result.start === result.end) {
-      return false;
-    } else {
-      return result;
-    }
+    return !(result.start === result.end);
+  },
+
+  testAroundMonth: function (i, blobArr) {
+    var result = this.testAround(i,
+                                 blobArr, 
+                                 new RegExp('[0-9 ]'));
+
+    return !(result.start === result.end);
   },
 
   /**
@@ -81,6 +169,7 @@ module.exports = {
   testAround: function (i, blobArr, reBackwardAndForward, reForward) {
     var backward = forward = i = parseInt(i,10),
         found = true,
+        word = blobArr[i],
         start,
         end,
         reForward = reForward ? reForward : reBackwardAndForward;
@@ -91,6 +180,8 @@ module.exports = {
       if (!reBackwardAndForward.test(blobArr[backward])) {
         start = backward + 1;
         found = false;
+      } else {
+        word = blobArr[backward] + word;
       }
     }
 
@@ -106,6 +197,8 @@ module.exports = {
       if (!reForward.test(blobArr[forward])) {
         end = forward - 1;
         found = false;
+      } else {
+        word += blobArr[forward];
       }
     }
 
@@ -113,7 +206,7 @@ module.exports = {
       return {start: i, end: i};
     }
 
-    return {start: start, end: end};
+    return {start: start, end: end, word: word};
   },
 
   getStringFromPortionOfArray: function (s, e, arr) {
