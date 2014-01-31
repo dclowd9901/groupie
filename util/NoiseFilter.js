@@ -19,6 +19,7 @@ module.exports = {
     this.calculateSaturation(this.wordFrequencyMap);
     this.calculateMinMaxAvgRange(this.wordFrequencyMap);
     this.getFrequencyMedianMode(this.wordFrequencyMap);
+    this.calculateUpperLimit(this.wordFrequencyMap);
   },
 
   heatMap: function (map) {
@@ -168,10 +169,20 @@ module.exports = {
     wordFrequencyMap = wordFrequencyMap || this.wordFrequencyMap;
 
     var sortedByCount = _.sortBy(wordFrequencyMap, 'count'),
-        halfLen = _.size(sortedByCount)/2;
+        halfLen = Math.ceil(_.size(sortedByCount)/2);
 
-    //this.median = _.at(sortedByCount, halfLen)[0].count;
+    this.median = _.at(sortedByCount, halfLen)[0].count;
     this.mode = this.calculateMode(wordFrequencyMap);
+  },
+
+  calculateUpperLimit: function (wordFrequencyMap) {
+    wordFrequencyMap = wordFrequencyMap || this.wordFrequencyMap;
+
+    var sortedByCount = _.sortBy(wordFrequencyMap, 'count'),
+        len = sortedByCount.length,
+        upperLimit = len - (len/10);
+
+    return this.upperLimit = sortedByCount[Math.ceil(upperLimit)].count;
   },
 
   calculateMode: function (wordFrequencyMap) {
@@ -198,7 +209,8 @@ module.exports = {
            '; avg: ' + this.avg + 
            '; median: ' + this.median +
            '; mode: ' + this.mode + 
-           '; range: ' + this.range;
+           '; range: ' + this.range + 
+           ': upperLimit: ' + this.upperLimit;
   },
 
   toObj: function () {
@@ -208,7 +220,8 @@ module.exports = {
       avg: this.avg,
       median: this.median,
       mode: this.mode,
-      range: this.range
+      range: this.range,
+      upperLimit : this.upperLimit
     }
   }
 };

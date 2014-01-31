@@ -12,24 +12,28 @@ module.exports = {
 
   parseEvents: function (rawText) {
 
+    this.cachedSplitText = rawText.split('');
     datetime.set(rawText);
     datetime.initialize();
+    this.colorize(datetime.dateHeatMap, 'red');
+    this.colorize(datetime.timeHeatMap, 'red');
 
-    // noise.set(rawText);
-    // noise.initialize();
-    // this.colorize(noise.heatMap(), 'blue');
+    noise.set(rawText);
+    noise.initialize();
+    console.log(noise.toString());
+    this.colorize(noise.heatMap(), 'blue');
 
-    // ticketCost.set(rawText);
-    // ticketCost.initialize();
-    // this.colorize(ticketCost.heatMap(), 'green');
+    ticketCost.set(rawText);
+    ticketCost.initialize();
+    this.colorize(ticketCost.heatMap(), 'green');
 
-    return datetime.cachedSplitText.join('');
+    return this.cachedSplitText.join('');
   },
 
   colorize: function (heatMap, color) {
     _.each(heatMap, _.bind(function (v, k) {
-      datetime.cachedSplitText[v.start] = '<span style="color:' + color + '">' + datetime.cachedSplitText[v.start];
-      datetime.cachedSplitText[v.end] = datetime.cachedSplitText[v.end] + '</span>';
+      this.cachedSplitText[v.start] = '<span style="color:' + color + '">' + this.cachedSplitText[v.start];
+      this.cachedSplitText[v.end] = this.cachedSplitText[v.end] + '</span>';
     }, this));
   }
 };

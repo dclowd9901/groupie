@@ -1,4 +1,6 @@
-var _ = require('lodash');
+var _ = require('lodash'),
+    HashSet = require('./EfficiencyUtilities').HashSet,
+    eu = require('./EfficiencyUtilities');
     
 module.exports = {
 
@@ -6,16 +8,22 @@ module.exports = {
   timeHeatMap: {},
 
   monthRe: /\bjanuary\b|\bfebruary\b|\bmarch\b|\bapril\b|\bmay\b|\bjune\b|\bjuly\b|\baugust\b|\bseptember\b|\boctober\b|\bnovember|\bdecember\b/gi,
-  abbrMonthRe: '[\\bjan\\b|\\bfeb\\b|\\bmar\\b|\\bapr\\b|\\bmay\\b|\\bjun\\b|\\bjul\\b|\\baug\\b|\\bsep\\b|\\boct\\b|\\bnov\\b|\\bdec\\b]',
+  abbrMonthRe: /[\bjan\b|\bfeb\b|\bmar\b|\bapr\b|\bmay\b|\bjun\b|\bjul\b|\baug\b|\bsep\b|\boct\b|\bnov\b|\bdec\b]/gi,
+  dateRe: /\s[0-9]{1,2}[\.\/-][0-9]{1,2}[\.\/-]*[0-9]{0,4}/g,
+  amPmDes: /[0-9] *[ap]\.*m\.*/gi,
+  timeRe: /^\s*[0-9]{1,2}\:*[0-9]{0,2} *[a|pm\.]{1,4}\s*$/i,
 
   cachedSplitText: null,
 
   initialize: function () {
     this.cachedSplitText = this.text.split('');
-    this.parseSpelledDates();
-    this.parseDates();
-    this.parseTimes();
-    console.log(this.dateHeatMap);
+    var spelledDates = this.parseSpelledDates(),
+        parsedDates = this.parseDates(),
+        parsedTimes = this.parseTimesByColon(),
+        parsedTimesByAmPm = this.parseTimesByAmPm();
+
+    this.dateHeatMap = parsedDates.concat(spelledDates);
+    this.timeHeatMap = eu.intersection(parsedTimes, parsedTimesByAmPm);
   },
 
   set: function (text) {
@@ -47,6 +55,8 @@ module.exports = {
       if (result) {
         arr[i].word += result[0];
         arr[i].end += result[0].length;
+      } else {
+        return;
       }
     });
 
@@ -62,10 +72,15 @@ module.exports = {
       j = arr[i].start - 1;
       foundMatch = true;
 
-      while (re.test(this.cachedSplitText[j])) {
-        stored += this.cachedSplitText[j];
-        j--;
-        arr[i].start--;
+      while (foundMatch) {
+
+        if (re.test(this.cachedSplitText[j])) {
+          stored = this.cachedSplitText[j] + stored;
+          j--;
+          arr[i].start--;
+        } else {
+          foundMatch = false;
+        }
       }
 
       arr[i].word = stored + arr[i].word;
@@ -76,23 +91,7 @@ module.exports = {
   },
 
   parseDates: function () {
-    var datesRe = new RegExp('/');
-
-    _.each(this.cachedSplitText, _.bind(function (value, key, all) {
-      var result = this.testFor(value, key, all, datesRe, _.bind(this.testAroundSlash, this));
-      
-      if (result) {
-        this.dateHeatMap.push(result);
-      }
-    }, this));
-
-    return this.dateHeatMap;
-  },
-
-  wholeWordize: function (arr) {
-    return _.map(arr, function (word) {
-      return '\\b' + word + '\\b';
-    });
+    return this.matches(this.dateRe, this.text);
   },
 
   parseSpelledDates: function () {
@@ -102,121 +101,30 @@ module.exports = {
     matches = this.lookahead(matches, /[ 0-9]+/g, this.text);
     matches = this.lookbehind(matches, /[ 0-9]/, this.text);
 
-    console.log(matches);
+    return matches;
   },
 
-  
+  parseTimesByColon: function () {
+    var matches = this.matches(/\:/g, this.text);
 
-  parseTimes: function () {
-    var datesRe = new RegExp('\:');
+    matches = this.lookahead(matches, /[0-9]+ *[ap]\.*m*\.*/gi, this.text);
+    matches = this.lookbehind(matches, /[0-9]/, this.text);
 
-    _.each(this.cachedSplitText, _.bind(function (value, key, all) {
-      var result = this.testFor(value, key, all, datesRe, _.bind(this.testAroundColon, this));
+    return this.filterTimes(matches);
+  },
 
-      if (result) {
-        this.timeHeatMap[key] = result;
-      }
+  parseTimesByAmPm: function () {
+    var matches = this.matches(this.amPmDes, this.text);
+
+    matches = this.lookbehind(matches, /[0-9\:]/, this.text);
+    
+    return this.filterTimes(matches);
+  },
+
+  filterTimes: function (timesArr) {
+    return _.filter(timesArr, _.bind(function (wordProps) {
+      return this.timeRe.test(wordProps.word);
     }, this));
-
-    return this.timeHeatMap;
-  },
-
-  testFor: function (character, key, all, re, testAroundFunc) {
-    var result;
-
-    if (re.test(character)) {
-      return testAroundFunc(key, all);
-    }
-  },
-
-
-
-  /**
-   * Will return as long as any characters 0-9 or / are found
-   */
-  testAroundSlash: function (i, blobArr) {
-    var result = this.testAround(i, blobArr, new RegExp('[0-9\\/]{1}', 'i'));
-
-    return !(result.start === result.end);
-  },
-
-  testAroundColon: function (i, blobArr) {
-    var result = this.testAround(i, 
-                                 blobArr, 
-                                 // Test for numbers preceding colons and other colons
-                                 new RegExp('[0-9]', 'i'), 
-                                 // test for numbers, spaces and a/p/m/.
-                                 new RegExp('[0-9\\sap\\.m]', 'i'));
-
-    return !(result.start === result.end);
-  },
-
-  testAroundMonth: function (i, blobArr) {
-    var result = this.testAround(i,
-                                 blobArr, 
-                                 new RegExp('[0-9 ]'));
-
-    return !(result.start === result.end);
-  },
-
-  /**
-   * Returns range through object
-   * {
-   *   "start" : <range's starting index>
-   *   "end" : <range's ending index>
-   * }
-   */
-  testAround: function (i, blobArr, reBackwardAndForward, reForward) {
-    var backward = forward = i = parseInt(i,10),
-        found = true,
-        word = blobArr[i],
-        start,
-        end,
-        reForward = reForward ? reForward : reBackwardAndForward;
-
-    while (found) {
-      backward--;
-
-      if (!reBackwardAndForward.test(blobArr[backward])) {
-        start = backward + 1;
-        found = false;
-      } else {
-        word = blobArr[backward] + word;
-      }
-    }
-
-    if (start === i) {
-      return {start: i, end: i};
-    }
-
-    found = true;
-
-    while (found) {
-      forward++;
-
-      if (!reForward.test(blobArr[forward])) {
-        end = forward - 1;
-        found = false;
-      } else {
-        word += blobArr[forward];
-      }
-    }
-
-    if (end === i) {
-      return {start: i, end: i};
-    }
-
-    return {start: start, end: end, word: word};
-  },
-
-  getStringFromPortionOfArray: function (s, e, arr) {
-    copy = '';
-
-    for (; s <= e; s++) {
-      copy += arr[s];
-    }
-
-    return copy;
   }
 };
 
